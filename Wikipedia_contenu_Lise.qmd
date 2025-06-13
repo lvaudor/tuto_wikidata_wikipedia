@@ -3,11 +3,18 @@ title: "Wikipedia_contenu_Lise"
 format: html
 editor: visual
 ---
+```{r}
+library(tidyverse)
+```
+
+
 
 On reprend le jeu de données des géographes français, et on se concentre sur celui qui fait l'objet du nombre le plus important d'articles.
 
 ```{r}
-geographes_url=readRDS("data/geographes_url.RDS")
+geographes_url=readRDS("data/geographes_url.RDS") %>% 
+  filter(str_detect(link,"wikipedia"))
+# On ne garde que les articles de Wikipédia et non par ex. Wikisource ou Wikiquote
 geographes_url %>% 
   group_by(person,person_label) %>% 
   tally() %>% 
@@ -25,7 +32,6 @@ focus_Elisee_Reclus=geographes_url %>%
 
 Ici, scraping "classique" avec le package rvest
 
-
 ```{r}
 library(rvest)
 link="https://fr.wikipedia.org/wiki/%C3%89lis%C3%A9e_Reclus"
@@ -36,21 +42,192 @@ nodes=html_nodes(html,"h1,h2")
 nodes
 html_text(nodes)
 ```
-Un exemple geographes_
+
+On récupère tout le texte:
+
+```{r}
+nodes=html %>% 
+  html_nodes("h1,h2,h3,h4,h5,h6,p") %>% 
+  html_text()
+nodes
+```
+
+Un peu de nettoyage... par exemple pour enlever toutes les refs de type [xx] dans le texte.
+
+On recherche une **expression régulière**
+
+[article blog expressions régulières](https://perso.ens-lyon.fr/lise.vaudor/strings-et-expressions-regulieres/)
+
+```{r}
+stringr::str_replace_all("bliblibloublou [23] et puis blablabla [58]",
+                         "\\[\\d*\\]",#tous les nombres entre crochets
+                         "") 
+```
+
+```{r}
+get_text=function(link){ 
+  html=read_html(link) 
+  texts=html_nodes(html,"h1, h2, h3, h4, h5, h6, p") %>%
+    purrr::map(html_text) %>%
+    stringr::str_replace_all("\\[\\d*\\]","") 
+  text=paste0(texts,collapse="\n")
+  return(text) 
+}
+
+get_text(link)
+```
+
+# Récupération du texte de tous les articles (sur Elisée Reclus)
+
+On va appliquer la fonction get_text() définie ci-dessus sur l'ensemble des articles sur Elisée Reclus
+
+[article blog sur itérations avec purrr](https://perso.ens-lyon.fr/lise.vaudor/iterer-des-fonctions-avec-purrr/)
+
+```{r}
+focus_Elisee_Reclus=focus_Elisee_Reclus %>% 
+  mutate(text=purrr::map_chr(link,get_text))
+#saveRDS(focus_Elisee_Reclus,"data/focus_Elisee_Reclus.RDS")
+View()
+```
+
+# Traduction
+
+Récupérons le code-langue de chaque article
+
+```{r}
+focus_Elisee_Reclus=focus_Elisee_Reclus %>% 
+  mutate(lang=stringr::str_extract(link,
+                                      "(?<=https://)([[:alpha:]]|-)*(?=\\.)")) %>% 
+  #le code langue= un assemblage de lettres et tiret, précédé de https: et suivi d'un point
+  mutate(lang=case_when(lang=="simple"~"en",
+                           TRUE~lang)) %>% 
+     # convert language to Google Translate language code
+  mutate(lang_google=case_when(lang=="zh"~"zh-CN",
+                               lang=="zh-yue"~"zh-CN",
+                               lang=="zh-classical"~"zh-CN",
+                               lang=="zh-min-nan"~"zh-CN",
+                               lang=="ar"~"hy",
+                               lang=="bh"~"hi",
+                               lang=="bjn"~"id",
+                               TRUE~lang))
+```
+
+
+```{r}
+library(polyglotr)
+
+focus_Elisee_Reclus$lang_google[1]
+focus_Elisee_Reclus$text[1]
+google_translate_long_text(source_language=focus_Elisee_Reclus$lang_google[1],  
+                           target_language="fr",
+                           focus_Elisee_Reclus$text[1])
+```
+
+```{r}
+num=which(focus_Elisee_Reclus$lang=="en")
+google_translate_long_text(source_language=focus_Elisee_Reclus$lang_google[1],  
+                           target_language="en",
+                           focus_Elisee_Reclus$text[1])
+```
+
+Traduction de l'ensemble des articles:
+
+```{r}
+focus_Elisee_Reclus_traduit=focus_Elisee_Reclus %>% 
+  mutate(texte_traduit=purrr::map2(.x=lang_google,
+                                       .y=text,
+                                       ~safely(google_translate_long_text)(source_language=.x,
+                                                                           target_language="fr",
+                                                                           text=.y)))  %>% 
+  mutate(result=map(texte_traduit,"result")) 
+# truc=focus_Elisee_Reclus_traduit %>% 
+#   mutate(result=case_when(is.null(result)~NA,
+#                           TRUE~result)) %>% 
+#   mutate(result=unlist(result))
+
+
+saveRDS(focus_Elisee_Reclus_traduit,"data/focus_Elisee_Reclus_traduit.RDS")
+```
+
+
+## Nettoyage et traduction de tous les articles
+
+```{r}
+clean_banners=function(text){
+  banner=str_detect(text,"This article|this banner|your knowledge")
+  if(banner & !is.na(text)){
+  result=text %>% 
+    str_replace("This article is.*\\n","") %>% 
+    str_replace("This article is a draft concerning.*\\.\\n\\n","") %>% 
+    str_replace("\\nedit - edit code - edit Wikidata\\n","") %>% 
+    str_replace("You can share your knowledge by.*\\.","") %>% 
+    str_replace("This article is based.*$","") %>% 
+    str_replace("^(.|\\n)*If you think these points have been resolved, you can remove this banner and improve the formatting of another article\\.","")%>% 
+    str_replace("This .*article.*\\. You can help Wikipedia by expanding it\\.","") %>% 
+    str_replace("\\..*\\}","")
+  }else{result=text}
+  return(result)
+}
+```
+
+```{r}
+clean_text=function(text){
+  patterns=c(
+    "\\.[[^ ]]*",#ex .mw-output-parser
+    "\\{[^\\{\\}]*\\}", #ex. {padding:0}
+    "External links.{0,800}$",
+    "Notes and references.{0,800}$",
+    "(Links)* (Navigation)*.*In other languages$",
+    "References External connections.{0,800}$",
+    "See also.{0,800}$",
+    "Literature External links.{0,800}$",
+    "External references.{0,800}$",
+    "Links.{0,200}$",
+    "Notes ",
+    "Related items",
+    "External connections",
+    "^Table of contents ",
+    "Other projects ",
+    "The text is available under the license \\\"Creative Commons name names-passing on under the same conditions\\\"",
+    "[iI]nformation on the (authors|copyrights).*by clicking (on them)+",
+    "The content may be subject to additional conditions",
+    "Through use You agree to this website with the terms of use and the data protection directive",
+    "By using this website, you agree to the terms of use and the data protection directive",
+    "Additional literature Links",
+    "Edit - Modify the code - Modify Wikidata ",
+    "^Summary",
+    "[Ff]ootnote",
+    "Related topics$",
+    "[Rr]eferences*.{0,50}$",
+    "Sources*.{0,50}$",
+    "See too.{0,50}$",
+    "Related articles*.{0,50}$",
+    "Notes*.{0,50}$",
+    "\\{background-image: URL.*upload."
+  )
+  if(!(is.na(text)|is.nan(text)|is.null(text))){
+    for (i in 1:length(patterns)){
+      text=stringr::str_replace_all(text,patterns[i],"")
+    }
+  }else(text="")
+  return(text)
+}
+```
+
+```{r}
+focus_Elisee_Reclus_cleantext=focus_Elisee_Reclus %>% 
+  mutate(text=purrr::map_chr(texte_traduit,clean_banners)) %>% 
+  mutate(text=purrr::map_chr(texte_traduit,clean_text))
 
 ```
 
 
-get_text=function(link){
-    html=read_html(link)
-    texts=html_nodes(html,"h1, h2, h3, h4, h5, h6, p") %>%
-    purrr::map(html_text) %>% 
-    stringr::str_replace("\\[.*\\]$","")
-    text=paste0(texts,collapse="\n")
-    return(text)
-  }
-   
- wikisites_text=wikisites %>%
-   mutate(text=apply_with_progress(.x=article,
-                                   .f=get_text))
+
+# Tokénisation, lemmatisation (approche "sac de mots")
+
+```{r}
+
+
+```
+
 

@@ -10,7 +10,6 @@ library(glitter)
 library(tidyverse)
 ```
 
-
 # Introduction
 
 Aller voir sur le site Wikidata!!
@@ -25,9 +24,6 @@ SERVICE wikibase:label{bd:serviceParam wikibase:language "fr"}
 }'
 WikidataQueryServiceR::query_wikidata(query)
 ```
-
-
-
 
 ## Wikidata: difficultés d'appropriation et de collecte
 
@@ -51,7 +47,6 @@ WikidataQueryServiceR::query_wikidata(query)
 
 En tant que "**Domain Specific Language**" (DSL), glitter correspond à une *syntaxe* et des *fonctions* plus proches du tidyverse et base R que de SPARQL.
 
-
 # Exemple de requête simple
 
 Dans R, sans glitter:
@@ -70,9 +65,9 @@ geographes_urlfr <- WikidataQueryServiceR::query_wikidata(query)
 geographes_urlfr
 ```
 
--  🖊️ Rédaction et envoi de commandes R
--  🎁 Recueil du tableau de résultats en tant qu'objet R
--  🎯 Chaîne de traitement reproductible
+-   🖊️ Rédaction et envoi de commandes R
+-   🎁 Recueil du tableau de résultats en tant qu'objet R
+-   🎯 Chaîne de traitement reproductible
 
 Dans R, avec glitter:
 
@@ -128,7 +123,6 @@ query=spq_init() %>%
   spq_add("?film wdt:P840 ?loc")
 ```
 
-
 ```{r show_step3, echo=FALSE}
 steps[[3]]
 ```
@@ -165,7 +159,6 @@ query=spq_init() %>%
   spq_add("?film wdt:P921 ?subject", .required=FALSE) 
 ```
 
-
 ```{r, echo=FALSE}
 steps[[6]]
 ```
@@ -179,7 +172,6 @@ query=spq_init() %>%
   spq_add("?film wdt:P921 ?subject", .required=FALSE) %>%          
   spq_add("?film wdt:P577 ?date") 
 ```
-
 
 ```{r show_step7, echo=FALSE}
 steps[[9]]
@@ -291,7 +283,6 @@ tib <- spq_init() %>%
 tib
 ```
 
-
 Temps de réponse du serveur limité par un paramètre de Time out:
 
 -   Wikidata Query Service : 60s
@@ -327,7 +318,6 @@ df
 -   client (par ex. glitter): ❌️
 
 ![](img/taille_requete_2.png)
-
 
 Pour **film**, **date**, **image**:
 
@@ -392,4 +382,3 @@ tib_genre_actors %>%
 https://github.com/lvaudor/sequins
 
 ![](img/hex-sequins_small.png)
-
