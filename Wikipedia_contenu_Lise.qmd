@@ -1,0 +1,56 @@
+---
+title: "Wikipedia_contenu_Lise"
+format: html
+editor: visual
+---
+
+On reprend le jeu de données des géographes français, et on se concentre sur celui qui fait l'objet du nombre le plus important d'articles.
+
+```{r}
+geographes_url=readRDS("data/geographes_url.RDS")
+geographes_url %>% 
+  group_by(person,person_label) %>% 
+  tally() %>% 
+  arrange(desc(n))
+```
+
+Le géographe qui fait l'objet du plus grand nombre d'articles est Elisée Reclus. Concentrons nous sur les 54 articles qui en parlent.
+
+```{r}
+focus_Elisee_Reclus=geographes_url %>% 
+  filter(person_label=="Élisée Reclus")
+```
+
+# Récupération du texte d'un article
+
+Ici, scraping "classique" avec le package rvest
+
+
+```{r}
+library(rvest)
+link="https://fr.wikipedia.org/wiki/%C3%89lis%C3%A9e_Reclus"
+
+html=read_html(link)
+
+nodes=html_nodes(html,"h1,h2")
+nodes
+html_text(nodes)
+```
+Un exemple geographes_
+
+```
+
+
+get_text=function(link){
+    html=read_html(link)
+    texts=html_nodes(html,"h1, h2, h3, h4, h5, h6, p") %>%
+    purrr::map(html_text) %>% 
+    stringr::str_replace("\\[.*\\]$","")
+    text=paste0(texts,collapse="\n")
+    return(text)
+  }
+   
+ wikisites_text=wikisites %>%
+   mutate(text=apply_with_progress(.x=article,
+                                   .f=get_text))
+
