@@ -1,0 +1,137 @@
+---
+title: "Wikipedia_vues_et_revisions_Lise"
+format: html
+editor: visual
+---
+
+
+# Vues
+
+```{r}
+library(httr)
+library(jsonlite)
+
+get_page_views=function(title,lang){
+  # Définir la plage de dates pour laquelle vous souhaitez récupérer les statistiques
+  start_date <- "20000101"
+  end_date <- "20250531"
+  title=URLencode(title)
+  string1="https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
+  string2="all-access/all-agents"
+  # Construire l'URL de l'API Wikimedia pour récupérer les statistiques de consultation
+  url=glue::glue("{string1}/{lang}.wikipedia/{string2}/{title}/daily/{start_date}/{end_date}")
+  response= httr::GET(url)
+  
+  # Vérifier si la requête a réussi
+  if (httr::status_code(response) == 200) {
+    # Convertir les données JSON en un objet R
+    content=httr::content(response, "text", encoding = "UTF-8")
+    data_views = jsonlite::fromJSON(content)[[1]] %>% 
+      dplyr::select(timestamp,views)
+  } else {
+    cat("Erreur lors de la récupération des données.")
+    cat(title)
+    cat(lang)
+    return(NA)
+  }  
+  return(data_views)
+}
+```
+
+
+```{r}
+vues=get_page_views(title="Élisée Reclus",lang="fr")
+```
+
+```{r}
+vues_par_an=vues %>% 
+  mutate(day=lubridate::ymd_h(timestamp)) %>% 
+  mutate(year=lubridate::year(day)) %>%
+  group_by(year) %>% 
+  summarise(nviews=sum(views))
+vues_par_an
+```
+
+```{r}
+library(ggplot2)
+ggplot(vues_par_an,aes(x=year,y=nviews))+geom_col()
+```
+
+# Révisions
+
+```{r}
+get_page_revs=function(title,lang){
+  f=function(x){
+    ind=which(map_lgl(x,is.null))
+    if(length(ind)>0){x[ind]=NA}
+    x[["comment"]]=x[["comment"]][[1]]
+    if(length(x$user)==1){
+      x$user=list(id=NA,name=NA)
+    }
+    if(length(x$user)==2){
+      if(is.null(x$user$name)){name=NA}else{name=x$user$name}
+      if(is.null(x$user$id)){id=NA}else{id=x$user$id}
+      x$user=list(id=id,name=name)
+    }
+    return(x)
+  }
+  url=paste0("https://",lang,
+             ".wikipedia.org/w/rest.php/v1/page/",
+             URLencode(title),
+             "/history")
+  revs_raw=GET(url)
+  if(revs_raw$status_code<=200){
+    revs=revs_raw %>%
+      content() %>%
+      .$revisions %>% 
+      map(f) %>% 
+      map(as_tibble) %>%
+      bind_rows()
+    while("older" %in% names(content(revs_raw))){
+      revs_raw=httr::GET(content(revs_raw)$older)
+      revs_tmp=revs_raw %>%
+        content() %>%
+        .$revisions %>%
+        map(f) %>% 
+        map(as_tibble) %>%
+        bind_rows()
+      revs=bind_rows(revs,revs_tmp)
+    }
+    revs=revs %>% 
+      group_by(id) %>% 
+      mutate(type=c("user_id","user_name")) %>% 
+      tidyr::pivot_wider(names_from=type,values_from=user) %>% 
+      tidyr::unnest(cols = c(user_id, user_name))
+  }else{revs=tibble(id=NA,
+                    timestamp=NA,
+                    minor=NA,
+                    size=NA,
+                    comment=NA,
+                    delta=NA,
+                    user_id=NA,
+                    user_name=NA)}
+  return(revs)
+}
+```
+
+
+```{r}
+tib_revs=get_page_revs(title="Élisée Reclus",lang="fr")
+
+#saveRDS(tib_revs,"data/tib_revs.RDS")
+```
+
+
+```{r}
+longueur_par_an=tib_revs %>% 
+  mutate(day=lubridate::ymd_hms(timestamp)) %>% 
+  mutate(year=lubridate::year(day)) %>%
+  group_by(year) %>% 
+  summarise(sum_delta=sum(delta))
+longueur_par_an
+```
+
+```{r}
+ggplot(longueur_par_an,aes(x=year,y=sum_delta))+geom_col()
+```
+

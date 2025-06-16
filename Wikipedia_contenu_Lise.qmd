@@ -103,9 +103,7 @@ focus_ER=focus_ER %>%
   mutate(lang=stringr::str_extract(link,
                                       "(?<=https://)([[:alpha:]]|-)*(?=\\.)")) %>% 
   #le code langue= un assemblage de lettres et tiret, précédé de https: et suivi d'un point
-  mutate(lang=case_when(lang=="simple"~"en",
-                           TRUE~lang)) %>% 
-     # convert language to Google Translate language code
+  # convert language to Google Translate language code
   mutate(lang_google=case_when(lang=="zh"~"zh-CN",
                                lang=="zh-yue"~"zh-CN",
                                lang=="zh-classical"~"zh-CN",
@@ -138,7 +136,7 @@ google_translate_long_text(source_language=focus_ER$lang_google[1],
 Traduction de l'ensemble des articles:
 
 ```{r}
-focus_ER_traduit=focus_ER %>% 
+focus_ER_traduit=focus_ER %>%
   mutate(texte_traduit=purrr::map2(.x=lang_google,
                                        .y=text,
                                        ~safely(google_translate_long_text)(source_language=.x,
@@ -153,14 +151,17 @@ focus_ER_traduit %>%
   head()
 ```
 
+
+ICI
+
 ```{r}
 focus_ER_traduit %>% tail()
 
-focus_ER_traduit=focus_ER_traduit %>% 
+focus_ER_5art=focus_ER_traduit %>% 
+  filter(lang %in% c("fr","zh","en","it","pt")) %>% 
   mutate(texte_traduit=purrr::map(texte_traduit,
-                                  "result")) %>% 
-  mutate(texte_traduit=purrr::map_chr(texte_traduit,
-                                      function(x){if(is.null(x)){return(NA)}else{return(x)}}))
+                                  "result")) 
+saveRDS(focus_ER_5art,"data/focus_ER_5art.RDS")
 ```
 
 
@@ -229,13 +230,13 @@ clean_text=function(text){
 }
 ```
 
-# Tokénisation, lemmatisation (approche "sac de mots")
+# Tokénisation, lemmatisation (approche "sac de mots"), spécificités
 
 ## Tokénisation
 
 ```{r}
 library(tidytext)
-focus_ER_tokens=focus_ER_traduit %>% 
+focus_ER_tokens=focus_ER_5art %>% 
   unnest_tokens(output="word",
                 input=texte_traduit)
 focus_ER_tokens %>% head()
@@ -275,7 +276,7 @@ focus_ER_mots=focus_ER_tokens %>%
   filter(lemma!="reclus")
 ```
 
-# Spécificités
+## Spécificités
 
 Calcul des spécificités par le package `textometry` ("à la TXM"), appelé via `mixr`.
 
@@ -284,8 +285,7 @@ Calcul des spécificités par le package `textometry` ("à la TXM"), appelé via
 On calcule les occurrences et spécificités des lemmes par langue
 
 ```{r}
-spec=focus_ER_mots %>% 
-  filter(lang %in% c("fr","zh","en","it","pt")) %>% 
+spec=focus_ER_mots  %>% 
   mixr::tidy_specificities(lemma,lang, top_spec=20)
 
 head(spec)
@@ -293,5 +293,52 @@ head(spec)
 
 ```{r,fig.height=6}
 plot_specificities(spec,lemma,lang)
+```
+
+# Topic modelling 
+
+```{r}
+focus_ER_segments=focus_ER_5art %>%
+  select(link,lang,texte_traduit) %>% 
+  unnest_ptb(output="word",
+             input=texte_traduit) %>% 
+  left_join(lexicon_fr,by="word") %>% 
+      group_by(lang,link) %>%
+      mutate(keep=type %in% c("adj","nom","ver") & lemma!="reclus") %>% 
+      mutate(lemma=case_when(!keep~"",
+                             keep~lemma)) %>% 
+      mutate(num_lemma=case_when(!keep~0,
+                                 keep~1)) %>% 
+      mutate(num_lemma=cumsum(num_lemma)) %>% 
+      mutate(num_segment=ceiling(num_lemma/20+0.000001)) %>% 
+      ungroup() %>% 
+      group_by(lang,link,num_segment) %>% 
+      summarise(text_all=paste0(word, collapse=" "),
+                text_sig=paste0(lemma,collapse=" "),
+                .groups="drop") %>% 
+      mutate(num_segment=paste0(link,"_",num_segment)) %>% 
+      mutate(text_sig=stringr::str_replace_all(text_sig,"\\s+"," "))
+```
+
+Utilisation de la méthode de Reinert pour faire du **clustering textuel** (et ainsi identifier des thématiques dans le contenu textuel à travers des familles lexicales)
+
+[vignette](https://juba.github.io/rainette/articles/introduction_usage.html)
+
+[]https://mate-shs.cnrs.fr/actions/tutomate/tuto42-rainette-julien-barnier/
+
+```{r}
+  library(quanteda)
+  library(rainette)
+  corpus=quanteda::corpus(focus_ER_segments,
+                docid_field="num_segment",
+                text_field="text_sig")
+  tok <- tokens(corpus, remove_punct = TRUE, remove_numbers = TRUE)
+  dtm <- dfm(tok)
+  dtm <- dfm_trim(dtm, min_docfreq = 3)
+  set.seed(123)
+  res=rainette(dtm,k=10,min_split_members=10)
+  #rainette_explor(res,dtm)
+  saveRDS(corpus,"data/corpus.RDS")
+  saveRDS(dtm,"data/dtm.RDS")
 ```
 

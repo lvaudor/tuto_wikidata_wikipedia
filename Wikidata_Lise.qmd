@@ -79,7 +79,7 @@ geographes_url=spq_init() %>%
   spq_add("?person wdt:P27 wd:Q142") %>% 
   spq_add("?person wdt:P570 ?deathdate", .required=FALSE) %>% 
   spq_add("?link schema:about ?person", .required=FALSE) %>% 
-  spq_label(person) %>% 
+  spq_label(person,.languages="fr") %>% 
   spq_perform()
 #saveRDS(geographes_url,"data/geographes_url.RDS")
 #geographes_url=readRDS("data/geographes_url.RDS")
@@ -89,289 +89,163 @@ geographes_url=spq_init() %>%
 geographes_url
 ```
 
-```{r steps, echo=FALSE}
-query <- spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P840 ?loc") %>%            
-  spq_add("?loc wdt:P625 ?coords") %>%  
-  spq_add("?film wdt:P3383 ?image") %>% 
-  spq_add("?film wdt:P921 ?subject", .required=FALSE) %>%          
-  spq_add("?film wdt:P577 ?date") %>%   
-  spq_label(film,loc,subject) %>% 
-  spq_mutate(year=year(date)) %>%       
-  spq_select(-date) 
+
+```{r}
+query <- spq_init() %>% 
+  spq_add('?person wdt:P106 wd:Q901402') %>% 
+  spq_add("?person wdt:P27 wd:Q142") %>% 
+  spq_add("?person wdt:P570 ?deathdate", .required=FALSE) %>% 
+  spq_add("?link schema:about ?person", .required=FALSE) %>% 
+  spq_add("?person wdt:P101 ?field",.required=FALSE) %>% 
+  spq_add("?person wdt:P21 ?genre") %>% 
+  spq_add("?person wdt:P800 ?notable_work",.required=FALSE) %>% 
+  spq_add("?notable_work wdt:P921 ?main_subject",.required=FALSE) %>% 
+  spq_label(person, notable_work,field,genre,main_subject,.languages="fr")
+
+
 
 steps=sequins::plot_query(query,show_step=TRUE, label=TRUE)
-```
-
-```{r show_step1, echo=FALSE}
 steps[[1]]
-```
-
-```{r step1}
-query=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424")
-```
-
-```{r show_step2, echo=FALSE}
 steps[[2]]
-```
-
-```{r step2}
-query=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P840 ?loc")
-```
-
-```{r show_step3, echo=FALSE}
 steps[[3]]
-```
-
-```{r step3}
-query=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P840 ?loc") %>%            
-  spq_add("?loc wdt:P625 ?coords") 
-```
-
-```{r show_step4, echo=FALSE}
 steps[[4]]
-```
-
-```{r step4}
-query=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P840 ?loc") %>%            
-  spq_add("?loc wdt:P625 ?coords") %>%  
-  spq_add("?film wdt:P3383 ?image") 
-```
-
-```{r show_step5, echo=FALSE}
 steps[[5]]
-```
-
-```{r steps5}
-query=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P840 ?loc") %>%            
-  spq_add("?loc wdt:P625 ?coords") %>%  
-  spq_add("?film wdt:P3383 ?image") %>% 
-  spq_add("?film wdt:P921 ?subject", .required=FALSE) 
-```
-
-```{r, echo=FALSE}
 steps[[6]]
+steps[[7]]
+steps[[8]]
 ```
 
-```{r step6}
-query=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P840 ?loc") %>%            
-  spq_add("?loc wdt:P625 ?coords") %>%  
-  spq_add("?film wdt:P3383 ?image") %>% 
-  spq_add("?film wdt:P921 ?subject", .required=FALSE) %>%          
-  spq_add("?film wdt:P577 ?date") 
-```
-
-```{r show_step7, echo=FALSE}
-steps[[9]]
-```
-
-```{r step7}
-query=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P840 ?loc") %>%            
-  spq_add("?loc wdt:P625 ?coords") %>%  
-  spq_add("?film wdt:P3383 ?image") %>% 
-  spq_add("?film wdt:P921 ?subject", .required=FALSE) %>%          
-  spq_add("?film wdt:P577 ?date") %>%   
-  spq_label(film,loc,subject) 
-```
-
-## Données enrichies
-
-```{r film_query}
-query=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P840 ?loc") %>%            
-  spq_add("?loc wdt:P625 ?coords") %>%  
-  spq_add("?film wdt:P3383 ?image") %>% 
-  spq_add("?film wdt:P921 ?subject", .required=FALSE) %>%          
-  spq_add("?film wdt:P577 ?date") %>%   
-  spq_label(film,loc,subject) %>% 
-  spq_mutate(year=year(date)) %>% 
-  spq_group_by(film,film_label,loc,loc_label,coords,image) %>%
-  spq_summarise(year=min(year),
-                subject_label=str_c(unique(subject_label),sep="; ")) 
-
-df_films=spq_perform(query)
-#saveRDS(df_films, "data/df_films.RDS")
-#df_films=readRDS("data/df_films.RDS")
-```
-
-Cette table comprend `r nrow(df_films)` lignes (films avec localisation narrative, coordonnées associées et affiche). Voici les premières:
-
-```{r calc_df_films_show, echo=FALSE}
-df_films_show <- df_films %>% 
-   select(film_label, loc_label,coords, image,subject_label, year) %>% 
-   unique() %>% 
-   head()
-```
-
-```{r df_films_show}
-df_films_show
-```
-
-## Carte mondiale des lieux de fiction (films avec affiche)
-
-```{r lf_c, echo=FALSE}
-lf_c=df_films %>%  # préfixe les uri
-  select(film,ends_with("_label"),coords,image,year) %>%  # Sélectionne ces variables (dont "...._label") puis
-  group_by(film,coords,image,loc_label,film_label) %>%    # Groupe par ces variables puis 
-  summarise(subject_label=paste0(unique(subject_label),   # Résume par groupe: le sujet (sur une seule ligne)   
-                                        collapse=", "),  #  ... en séparant les éléments par ", "
-            year=min(year),                              #  ... et l'année comme minimum des années de sortie   
-            .groups="drop")                              # Dégroupe
-```
-
-```{r lf_map, echo=FALSE}
-lf_map =lf_c %>%
-  #transform_wikidata_coords("coords") %>%
-  mutate(popup=glue::glue("<h1>{film_label}</h1>
-                           <li>Lieu: {loc_label}</li>
-                           <li>Année de sortie: {year}</li>")) %>%
-  mutate(popup=case_when(is.na(image)~popup,
-                         !is.na(image)~glue::glue("{popup}
-                                                  <img src='{image}' height='200'>"))) %>%
-  mutate(popup=case_when(is.na(subject_label)~popup,
-                         !is.na(subject_label)~glue::glue("{popup}
-                                                         <li>Thèmes: {subject_label}</li>"))) %>% 
-  filter(str_detect(coords,"^Point")) %>%
-  #pour film http://www.wikidata.org/entity/Q3284402 coords <http://www.wikidata.org/entity/Q405> Point(0.0 0.0)
-  sf::st_as_sf(wkt="coords")
-```
-
-```{r build_map_film, echo=FALSE}
-library(leaflet) 
-# Définition d'une échelle colorée 
-# (en fonction de date de sortie) 
-pal <- colorNumeric(c("red", "green", "blue"), c(1895,1950,1970,1990,2010,2025)) 
-# Création de la carte 
-map=leaflet(lf_map) %>% # déf carte 
-  addTiles() %>% # ajout fond de carte
-  addCircleMarkers(col=~pal(year),
-                   popup = ~popup,
-                   clusterOptions = markerClusterOptions()) 
-```
-
-```{r show_map, echo=FALSE}
-map 
-```
 
 # Dimension de la requête?
 
-Combien de films dans Wikidata:
+## Requête enrichie
 
-```{r req_glob_lf}
-tib <- spq_init() %>%                 
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_summarise(n_films=n()) %>%      # Résume en comptant le nombre de films puis
-  spq_perform()                       # Envoie la requête
+- [Elisée Reclus](https://www.wikidata.org/wiki/Q20951)
+- [L'Homme et la Terre](http://www.wikidata.org/entity/Q3203693)
+
+```{r}
+tib <- spq_init() %>% 
+  spq_add('?person wdt:P106 wd:Q901402') %>% 
+  spq_add("?person wdt:P27 wd:Q142") %>% 
+  spq_add("?person wdt:P570 ?deathdate", .required=FALSE) %>% 
+  spq_add("?link schema:about ?person", .required=FALSE) %>% 
+  spq_add("?person wdt:P101 ?field",.required=FALSE) %>% 
+  spq_add("?person wdt:P21 ?genre") %>% 
+  spq_add("?person wdt:P800 ?notable_work",.required=FALSE) %>% 
+  spq_add("?notable_work wdt:P921 ?main_subject",.required=FALSE) %>% 
+  spq_label(person, notable_work,field,genre,main_subject,.languages="fr") %>% 
+  spq_summarise(n_lignes=n()) %>%      # Résume en comptant le nombre de lignes puis
+  spq_perform()                        # Envoie la requête
 ```
 
-```{r req_glob_lf_show , echo=FALSE}
-tib
+```{r}
+spq_init() %>% 
+  spq_add('?person wdt:P106 wd:Q901402') %>% 
+  spq_add("?person wdt:P27 wd:Q142") %>% 
+  spq_summarise(n_lignes=n()) %>%      # Résume en comptant le nombre de lignes puis
+  spq_perform()       
 ```
+
+
+```{r}
+spq_init() %>% 
+  spq_add('?person wdt:P106 wd:Q901402') %>% 
+  spq_add("?person wdt:P27 wd:Q142") %>% 
+  spq_add("?person wdt:P570 ?deathdate", .required=FALSE) %>% 
+  spq_add("?link schema:about ?person", .required=FALSE) %>% 
+  spq_summarise(n_lignes=n()) %>%      # Résume en comptant le nombre de lignes puis
+  spq_perform()       
+```
+
+```{r}
+spq_init() %>% 
+  spq_add('?person wdt:P106 wd:Q901402') %>% 
+  spq_add("?person wdt:P27 wd:Q142") %>% 
+  spq_add("?person wdt:P570 ?deathdate", .required=FALSE) %>% 
+  spq_add("?link schema:about ?person", .required=FALSE) %>% 
+  spq_add("?person wdt:P101 ?field",.required=FALSE) %>% 
+  spq_add("?person wdt:P21 ?genre") %>% 
+  spq_add("?person wdt:P800 ?notable_work",.required=FALSE) %>% 
+  spq_summarise(n_lignes=n()) %>%      # Résume en comptant le nombre de lignes puis
+  spq_perform()       
+```
+
+```{r}
+# Ne fonctionne pas => TimeOut
+spq_init() %>% 
+  spq_add('?person wdt:P106 wd:Q901402') %>% 
+  spq_add("?person wdt:P27 wd:Q142") %>% 
+  spq_add("?person wdt:P570 ?deathdate", .required=FALSE) %>% 
+  spq_add("?link schema:about ?person", .required=FALSE) %>% 
+  spq_add("?person wdt:P101 ?field",.required=FALSE) %>% 
+  spq_add("?person wdt:P21 ?genre") %>% 
+  spq_add("?person wdt:P800 ?notable_work",.required=FALSE) %>% 
+  spq_add("?notable_work wdt:P921 ?main_subject",.required=FALSE) %>% 
+  spq_label(person, notable_work,field,genre,main_subject,.languages="fr") %>% 
+  spq_summarise(n_lignes=n()) %>%      # Résume en comptant le nombre de lignes puis
+  spq_perform()       
+```
+
 
 Temps de réponse du serveur limité par un paramètre de Time out:
 
 -   Wikidata Query Service : 60s
 -   client (par ex. glitter): 300s
 
-Pour **film**:
 
-```{r dim_req1}
-df=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_summarise(n=n()) %>% 
-  spq_perform()
-df
+
+## Combinaison de requêtes
+
+```{r}
+# Prend environ 3-4 minutes
+tib_geographes_enrichie=spq_init() %>% 
+  spq_add('?person wdt:P106 wd:Q901402') %>% 
+  spq_add("?person wdt:P27 wd:Q142") %>% 
+  spq_add("?person wdt:P570 ?deathdate", .required=FALSE) %>% 
+  spq_add("?link schema:about ?person", .required=FALSE) %>% 
+  spq_add("?person wdt:P101 ?field",.required=FALSE) %>% 
+  spq_add("?person wdt:P21 ?genre") %>% 
+  spq_add("?person wdt:P800 ?notable_work",.required=FALSE) %>% 
+  spq_label(person, notable_work,field,genre,.languages="fr") %>% 
+  spq_perform()  
+#saveRDS(tib_geographes_enrichie,"data/tib_geographes_enrichie.RDS")
 ```
 
--   Wikidata Query Service : ❌
--   client (par ex. glitter): ✅️
-
-![](img/taille_requete_1.png)
-
-Pour **film**, **date**:
-
-```{r dim_req2}
-df=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>%  
-  spq_add("?film wdt:P577 ?date") %>% 
-  spq_summarise(n=n()) %>% 
-  spq_perform()
-df
-```
-
--   Wikidata Query Service : ❌
--   client (par ex. glitter): ❌️
-
-![](img/taille_requete_2.png)
-
-Pour **film**, **date**, **image**:
-
-```{r dim_req3}
-df=spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P577 ?date") %>% 
-  spq_add("?film wdt:P3383 ?image") %>% 
-  spq_summarise(n=n()) %>% 
-  spq_perform()
-df
-```
-
--   Wikidata Query Service : ✅️
--   client (par ex. glitter): ✅️
-
-![](img/taille_requete_3.png)
-
-# Combinaison de requêtes
-
-Si on voulait par exemple récupérer le **genre** de film (comédie, drame, film d'aventure, etc.) et les **acteurs et actrices**:
-
-```{r genre_and_actor}
-spq_init() %>%                     
-  spq_add("?film wdt:P31 wd:Q11424") %>% 
-  spq_add("?film wdt:P136 ?genre") %>%
-  spq_add("?film wdt:P161 ?actor",.required=FALSE) %>% 
-  spq_tally() %>% 
-  spq_perform()
+```{r}
+tib_geographes_enrichie=readRDS("data/tib_geographes_enrichie.RDS")
 ```
 
 ```{r combi_queries}
-get_genre_and_actors=function(film_id){
-  film_id=paste0("<",film_id,">")
+get_main_subject=function(notable_work_id){
+  notable_work_id=paste0("<",notable_work_id,">")
   result=spq_init() %>%
-      spq_set(film= film_id) %>%
-      spq_add("?film wdt:P136 ?genre") %>%
-      spq_add("?film wdt:P161 ?actor",.required=FALSE) %>%
-      spq_label(genre, actor) %>%
-      spq_select(-film) %>%
+      spq_set(notable_work= notable_work_id) %>%
+      spq_add("?notable_work wdt:P921 ?main_subject") %>%
+      spq_label(main_subject,.languages="fr") %>%
+      spq_select(-notable_work) %>%
       spq_perform()
   return(result)
 }
 
-tib_genre_actors=df_films %>%
-   head() %>% 
-   mutate(data=purrr::map(film,get_genre_and_actors)) %>% 
+get_main_subject("http://www.wikidata.org/entity/Q3203693")
+```
+```{r}
+# Prend environ 1 minute
+tib_main_subject=tib_geographes_enrichie %>%
+   filter(!is.na(notable_work)) %>% 
+   select(notable_work,notable_work_label,person_label) %>% 
+   unique() %>% 
+   mutate(data=purrr::map(notable_work,get_main_subject)) %>% 
    unnest(cols=data)
+#saveRDS(tib_main_subject,"data/tib_main_subject.RDS")
 ```
 
-```{r show_tib_genre_actors}
-tib_genre_actors %>%
-  select(film_label,genre_label,actor_label)
+```{r}
+tib_geographes_enrichie=tib_geographes_enrichie %>% 
+  left_join(tib_main_subject)
 ```
+
+
 
 # ANNEXES
 
@@ -382,3 +256,6 @@ tib_genre_actors %>%
 https://github.com/lvaudor/sequins
 
 ![](img/hex-sequins_small.png)
+
+
+
