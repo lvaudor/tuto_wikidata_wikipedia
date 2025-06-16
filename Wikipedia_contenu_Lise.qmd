@@ -21,10 +21,10 @@ geographes_url %>%
   arrange(desc(n))
 ```
 
-Le géographe qui fait l'objet du plus grand nombre d'articles est Elisée Reclus. Concentrons nous sur les 54 articles qui en parlent.
+Intéressons-nous à une personne en particulier: Elisée Reclus. 
 
 ```{r}
-focus_Elisee_Reclus=geographes_url %>% 
+focus_ER=geographes_url %>% 
   filter(person_label=="Élisée Reclus")
 ```
 
@@ -62,6 +62,7 @@ On recherche une **expression régulière**
 stringr::str_replace_all("bliblibloublou [23] et puis blablabla [58]",
                          "\\[\\d*\\]",#tous les nombres entre crochets
                          "") 
+
 ```
 
 ```{r}
@@ -70,7 +71,7 @@ get_text=function(link){
   texts=html_nodes(html,"h1, h2, h3, h4, h5, h6, p") %>%
     purrr::map(html_text) %>%
     stringr::str_replace_all("\\[\\d*\\]","") 
-  text=paste0(texts,collapse="\n")
+  text=paste0(texts,collapse=" \n")
   return(text) 
 }
 
@@ -84,18 +85,21 @@ On va appliquer la fonction get_text() définie ci-dessus sur l'ensemble des art
 [article blog sur itérations avec purrr](https://perso.ens-lyon.fr/lise.vaudor/iterer-des-fonctions-avec-purrr/)
 
 ```{r}
-focus_Elisee_Reclus=focus_Elisee_Reclus %>% 
+focus_ER=focus_ER %>% 
   mutate(text=purrr::map_chr(link,get_text))
-#saveRDS(focus_Elisee_Reclus,"data/focus_Elisee_Reclus.RDS")
-View()
+#saveRDS(focus_ER,"data/focus_ER.RDS")
+focus_ER %>% 
+  head()
 ```
 
 # Traduction
 
+## Codes langue => codes langue Google
+
 Récupérons le code-langue de chaque article
 
 ```{r}
-focus_Elisee_Reclus=focus_Elisee_Reclus %>% 
+focus_ER=focus_ER %>% 
   mutate(lang=stringr::str_extract(link,
                                       "(?<=https://)([[:alpha:]]|-)*(?=\\.)")) %>% 
   #le code langue= un assemblage de lettres et tiret, précédé de https: et suivi d'un point
@@ -112,45 +116,56 @@ focus_Elisee_Reclus=focus_Elisee_Reclus %>%
                                TRUE~lang))
 ```
 
+## Traduction par Google Translate / polyglotr
 
 ```{r}
 library(polyglotr)
 
-focus_Elisee_Reclus$lang_google[1]
-focus_Elisee_Reclus$text[1]
-google_translate_long_text(source_language=focus_Elisee_Reclus$lang_google[1],  
+focus_ER$lang_google[1]
+focus_ER$text[1]
+google_translate_long_text(source_language=focus_ER$lang_google[1],  
                            target_language="fr",
-                           focus_Elisee_Reclus$text[1])
+                           focus_ER$text[1])
 ```
 
 ```{r}
-num=which(focus_Elisee_Reclus$lang=="en")
-google_translate_long_text(source_language=focus_Elisee_Reclus$lang_google[1],  
-                           target_language="en",
-                           focus_Elisee_Reclus$text[1])
+num=which(focus_ER$lang=="en")
+google_translate_long_text(source_language=focus_ER$lang_google[1],  
+                           target_language="fr",
+                           focus_ER$text[1])
 ```
 
 Traduction de l'ensemble des articles:
 
 ```{r}
-focus_Elisee_Reclus_traduit=focus_Elisee_Reclus %>% 
+focus_ER_traduit=focus_ER %>% 
   mutate(texte_traduit=purrr::map2(.x=lang_google,
                                        .y=text,
                                        ~safely(google_translate_long_text)(source_language=.x,
                                                                            target_language="fr",
-                                                                           text=.y)))  %>% 
-  mutate(result=map(texte_traduit,"result")) 
-# truc=focus_Elisee_Reclus_traduit %>% 
-#   mutate(result=case_when(is.null(result)~NA,
-#                           TRUE~result)) %>% 
-#   mutate(result=unlist(result))
-
-
-saveRDS(focus_Elisee_Reclus_traduit,"data/focus_Elisee_Reclus_traduit.RDS")
+                                                                           text=.y))) 
+#saveRDS(focus_ER_traduit,"data/focus_ER_traduit.RDS")
 ```
 
 
-## Nettoyage et traduction de tous les articles
+```{r}
+focus_ER_traduit %>% 
+  head()
+```
+
+```{r}
+focus_ER_traduit %>% tail()
+
+focus_ER_traduit=focus_ER_traduit %>% 
+  mutate(texte_traduit=purrr::map(texte_traduit,
+                                  "result")) %>% 
+  mutate(texte_traduit=purrr::map_chr(texte_traduit,
+                                      function(x){if(is.null(x)){return(NA)}else{return(x)}}))
+```
+
+
+## Remarque: gros nettoyage sur le corpus inondations
+
 
 ```{r}
 clean_banners=function(text){
@@ -214,20 +229,69 @@ clean_text=function(text){
 }
 ```
 
-```{r}
-focus_Elisee_Reclus_cleantext=focus_Elisee_Reclus %>% 
-  mutate(text=purrr::map_chr(texte_traduit,clean_banners)) %>% 
-  mutate(text=purrr::map_chr(texte_traduit,clean_text))
-
-```
-
-
-
 # Tokénisation, lemmatisation (approche "sac de mots")
 
+## Tokénisation
+
 ```{r}
-
-
+library(tidytext)
+focus_ER_tokens=focus_ER_traduit %>% 
+  unnest_tokens(output="word",
+                input=texte_traduit)
+focus_ER_tokens %>% head()
 ```
 
+## Lemmatisation
+
+Voir site web de openlexicon ici:
+
+[openlexicon](https://openlexicon.fr/datasets-info/Lexique382/README-Lexique.html)
+
+
+Mon package `mixr` qui permet de charger le lexique (et faire d'autres traitements textuels que je montrerai ci-après):
+
+[mixr](https://github.com/lvaudor/mixr)
+
+```{r}
+library(mixr)
+lexicon_fr=get_lexicon("fr")
+lexicon_fr
+set.seed(33)
+sample_n(lexicon_fr,10)
+```
+
+```{r}
+focus_ER_tokens=focus_ER_tokens %>% 
+  left_join(lexicon_fr,by=c("word"="word"))
+
+head(focus_ER_tokens,100)
+```
+
+On filtre pour ne garder que des mots "signifiants" (exclusion des mots-outils):
+
+```{r}
+focus_ER_mots=focus_ER_tokens %>% 
+  filter(type %in% c("ver","adj","nom")) %>% 
+  filter(lemma!="reclus")
+```
+
+# Spécificités
+
+Calcul des spécificités par le package `textometry` ("à la TXM"), appelé via `mixr`.
+
+[Explication score de spécificité](https://perso.ens-lyon.fr/lise.vaudor/Descriptoire/_book/r%C3%A9sumer-linformation-par-des-m%C3%A9triques.html#spec)
+
+On calcule les occurrences et spécificités des lemmes par langue
+
+```{r}
+spec=focus_ER_mots %>% 
+  filter(lang %in% c("fr","zh","en","it","pt")) %>% 
+  mixr::tidy_specificities(lemma,lang, top_spec=20)
+
+head(spec)
+```
+
+```{r,fig.height=6}
+plot_specificities(spec,lemma,lang)
+```
 
